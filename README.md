@@ -4,7 +4,8 @@ A cross-platform mobile application (iOS & Android) built with Flutter that enab
 
 ## Developed by
 
-* [Sergiu Neagu](https://github.com/sergiuNE)
+- [Sergiu Neagu](https://github.com/sergiuNE)
+- Group nr: 11
 
 **Course:** Intro Mobile
 **Institution:** AP Hogeschool
@@ -14,29 +15,27 @@ A cross-platform mobile application (iOS & Android) built with Flutter that enab
 
 ### Core Features
 
-* **User Registration**
+- **User Registration**
   Users can create an account using email and password.
 
-* **List Appliances**
+- **List Appliances**
   Owners can add appliances with details such as description, category, images, price, and availability.
 
-* **Browse & Search**
+- **Browse & Search**
   Users can explore available appliances based on category or location.
 
-* **Booking System**
+- **Booking System**
   Appliances can be reserved for a selected time period.
 
-* **Reservation Management**
+- **Reservation Management**
+  - Owners manage incoming reservations via a dashboard
+  - Renters can view and track their bookings
 
-  * Owners manage incoming reservations via a dashboard
-  * Renters can view and track their bookings
-
-* **Ratings & Reviews**
+- **Ratings & Reviews**
   Users can review each other after completed rentals.
-
 
 ## Tech Stack
 
-* **Framework:** Flutter
-* **Backend / Database:** Firebase
-* **Maps & Location:** Google Maps
+- **Framework:** Flutter
+- **Backend / Database:** Firebase
+- **Maps & Location:** Google Maps
