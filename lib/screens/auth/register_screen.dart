@@ -20,32 +20,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _showPass = false;
   bool _showPassConfirm = false;
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFFF3B30),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _passConfirmCtrl.dispose();
+    _cityCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _register() async {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final city = _cityCtrl.text.trim();
+
+    if (name.isEmpty) {
+      _showError('Vul je naam in.');
+      return;
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      _showError('Vul een geldig e-mailadres in.');
+      return;
+    }
     if (_passCtrl.text != _passConfirmCtrl.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Wachtwoorden komen niet overeen.'),
-          backgroundColor: Color(0xFFFF3B30),
-        ),
-      );
+      _showError('Wachtwoorden komen niet overeen.');
       return;
     }
     if (_passCtrl.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Wachtwoord moet minstens 6 tekens zijn.'),
-          backgroundColor: Color(0xFFFF3B30),
-        ),
-      );
+      _showError('Wachtwoord moet minstens 6 tekens zijn.');
       return;
     }
+
     setState(() => _loading = true);
     try {
       await _auth.register(
-        email: _emailCtrl.text.trim(),
+        email: email,
         password: _passCtrl.text,
-        name: _nameCtrl.text.trim(),
-        city: _cityCtrl.text.trim(),
+        name: name,
+        city: city,
       );
       if (mounted) {
         Navigator.pushReplacement(
@@ -55,12 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Registratie mislukt: $e'),
-            backgroundColor: const Color(0xFFFF3B30),
-          ),
-        );
+        _showError('Registratie mislukt: $e');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -165,11 +182,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              _label('Stad / gemeente'),
+              _label('Stad / gemeente (optioneel)'),
               const SizedBox(height: 6),
               TextField(
                 controller: _cityCtrl,
-                decoration: const InputDecoration(hintText: 'Antwerpen'),
+                decoration: const InputDecoration(
+                  hintText: 'Antwerpen (optioneel)',
+                ),
               ),
               const SizedBox(height: 28),
               ElevatedButton(

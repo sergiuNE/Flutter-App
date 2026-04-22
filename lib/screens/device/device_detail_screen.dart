@@ -9,9 +9,62 @@ class DeviceDetailScreen extends StatelessWidget {
   final Device device;
   const DeviceDetailScreen({super.key, required this.device});
 
+  Future<AvailabilitySlot?> _pickSlot(BuildContext context) async {
+    if (device.availabilitySlots.isEmpty) return null;
+
+    final slots = [...device.availabilitySlots]
+      ..sort((a, b) {
+        final dayCmp = a.weekday.compareTo(b.weekday);
+        if (dayCmp != 0) return dayCmp;
+        return a.startMinutes.compareTo(b.startMinutes);
+      });
+
+    return showModalBottomSheet<AvailabilitySlot>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              title: Text(
+                'Kies een periode',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ...slots.map(
+              (s) => ListTile(
+                leading: const Icon(Icons.schedule_outlined),
+                title: Text(s.dayLabelNl),
+                subtitle: Text(s.timeRangeLabel),
+                onTap: () => Navigator.pop(context, s),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _reserve(BuildContext context) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+
+    if (device.availabilitySlots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Dit toestel heeft nog geen beschikbare periodes.'),
+          backgroundColor: Color(0xFFFF3B30),
+        ),
+      );
+      return;
+    }
+
+    final slot = await _pickSlot(context);
+    if (slot == null) return;
+
     await FirebaseFirestore.instance.collection('reservations').add({
       'deviceId': device.id,
       'deviceName': device.name,
@@ -19,13 +72,18 @@ class DeviceDetailScreen extends StatelessWidget {
       'ownerId': device.ownerId,
       'status': 'pending',
       'pricePerDay': device.pricePerDay,
+      'slotWeekday': slot.weekday,
+      'slotStartMinutes': slot.startMinutes,
+      'slotEndMinutes': slot.endMinutes,
+      'slotLabel': slot.labelNl,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Reserveringsaanvraag verstuurd!'),
-          backgroundColor: Color(0xFF34C759),
+        SnackBar(
+          content: Text('Reserveringsaanvraag verstuurd (${slot.labelNl})'),
+          backgroundColor: const Color(0xFF34C759),
         ),
       );
       Navigator.pop(context);
@@ -34,6 +92,13 @@ class DeviceDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final slots = [...device.availabilitySlots]
+      ..sort((a, b) {
+        final dayCmp = a.weekday.compareTo(b.weekday);
+        if (dayCmp != 0) return dayCmp;
+        return a.startMinutes.compareTo(b.startMinutes);
+      });
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: CustomScrollView(
@@ -201,6 +266,44 @@ class DeviceDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  const Text(
+                    'Beschikbare momenten',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  if (slots.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: slots.map((slot) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            slot.labelNl,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF4F46E5),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    )
+                  else
+                    const Text(
+                      'Nog geen verhuurmomenten ingesteld door verhuurder.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
+                    ),
+                  const SizedBox(height: 16),
+
                   if (device.lat != 0 && device.lng != 0) ...[
                     const Text(
                       'Locatie',
@@ -304,7 +407,9 @@ class DeviceDetailScreen extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: device.isAvailable
+                  onPressed:
+                      (device.isAvailable &&
+                          device.availabilitySlots.isNotEmpty)
                       ? () => _reserve(context)
                       : null,
                   child: const Text('Reserveren'),

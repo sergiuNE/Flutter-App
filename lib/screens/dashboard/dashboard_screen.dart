@@ -214,6 +214,17 @@ class _Lijst extends StatelessWidget {
                         color: Color(0xFF8E8E93),
                       ),
                     ),
+                    if ((d['slotLabel'] as String?)?.isNotEmpty == true) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        d['slotLabel'] as String,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF4F46E5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

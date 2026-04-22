@@ -1,12 +1,16 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../models/device.dart';
 import '../../widgets/device_card.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../device/device_detail_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../widgets/map_settings_screen.dart';
 import '../device/add_device_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -23,13 +27,125 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   String _selectedCategory = 'Alles';
   final _categories = ['Alles', 'Tuin', 'Keuken', 'Schoonmaak', 'Gereedschap'];
 
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSub;
+  bool _autoLocationTried = false;
+
+  double? _userLat;
+  double? _userLng;
+  double _radiusKm = 15;
+  String _cityLabel = 'Jouw stad';
+
+  @override
+  void initState() {
+    super.initState();
+    _listenUserSettings();
+  }
+
+  @override
+  void dispose() {
+    _userSub?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _listenUserSettings() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    _userSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .listen((doc) {
+          final data = doc.data() ?? {};
+          final city = (data['city'] as String?)?.trim();
+          final lat = (data['locationLat'] as num?)?.toDouble();
+          final lng = (data['locationLng'] as num?)?.toDouble();
+          final radius = ((data['searchRadiusKm'] as num?)?.toDouble() ?? 15)
+              .clamp(1, 50)
+              .toDouble();
+
+          if (!_autoLocationTried && (lat == null || lng == null)) {
+            _autoLocationTried = true;
+            _tryAutoSaveLiveLocation(uid, radius);
+          }
+
+          if (!mounted) return;
+          setState(() {
+            _cityLabel = (city == null || city.isEmpty) ? 'Jouw stad' : city;
+            _userLat = lat;
+            _userLng = lng;
+            _radiusKm = radius;
+          });
+        });
+  }
+
+  Future<void> _tryAutoSaveLiveLocation(String uid, double radiusKm) async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) return;
+
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition();
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'locationLat': pos.latitude,
+        'locationLng': pos.longitude,
+        'searchRadiusKm': radiusKm,
+        'locationUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+
+    final a =
+        math.pow(math.sin(dLat / 2), 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.pow(math.sin(dLon / 2), 2);
+
+    final c = 2 * math.atan2(math.sqrt(a.toDouble()), math.sqrt(1 - a));
+    return 6371 * c;
+  }
+
+  double _degToRad(double deg) => deg * (math.pi / 180);
+
+  Future<void> _openMapSettings() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MapSettingsScreen(
+          uid: uid,
+          initialLat: _userLat,
+          initialLng: _userLng,
+          initialRadiusKm: _radiusKm,
+        ),
+      ),
+    );
+  }
+
   Stream<List<Device>> _deviceStream() {
     Query query = FirebaseFirestore.instance
         .collection('devices')
         .where('isAvailable', isEqualTo: true);
+
     if (_selectedCategory != 'Alles') {
       query = query.where('category', isEqualTo: _selectedCategory);
     }
+
     return query.snapshots().map(
       (snap) => snap.docs
           .map((d) => Device.fromMap(d.data() as Map<String, dynamic>, d.id))
@@ -89,46 +205,41 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Widget _buildDiscover() {
+    final topLabel = (_userLat != null && _userLng != null)
+        ? 'Binnen ${_radiusKm.toStringAsFixed(0)} km'
+        : _cityLabel;
+
     return CustomScrollView(
       slivers: [
         SliverAppBar(
           floating: true,
           backgroundColor: Colors.white,
-          title: FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance
-                .collection('users')
-                .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
-                .get(),
-            builder: (context, snap) {
-              final data = snap.data?.data() as Map<String, dynamic>? ?? {};
-              final city = (data['city'] as String?)?.trim();
-              final cityLabel = (city == null || city.isEmpty)
-                  ? 'Jouw stad'
-                  : city;
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    cityLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF4F46E5),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Ontdekken',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1C1C1E),
-                    ),
-                  ),
-                ],
-              );
-            },
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                topLabel,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF4F46E5)),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Ontdekken',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1C1C1E),
+                ),
+              ),
+            ],
           ),
+          actions: [
+            IconButton(
+              onPressed: _openMapSettings,
+              icon: const Icon(Icons.map_outlined),
+              color: const Color(0xFF4F46E5),
+              tooltip: 'Map & bereik',
+            ),
+          ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(100),
             child: Column(
@@ -214,6 +325,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 child: Center(child: CircularProgressIndicator()),
               );
             }
+
             var devices = snap.data ?? [];
 
             if (_searchQuery.isNotEmpty) {
@@ -227,16 +339,34 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               }).toList();
             }
 
+            if (_userLat != null && _userLng != null) {
+              devices =
+                  devices.where((d) {
+                    if (d.lat == 0 || d.lng == 0) return false;
+                    final km = _distanceKm(_userLat!, _userLng!, d.lat, d.lng);
+                    return km <= _radiusKm;
+                  }).toList()..sort((a, b) {
+                    final da = _distanceKm(_userLat!, _userLng!, a.lat, a.lng);
+                    final db = _distanceKm(_userLat!, _userLng!, b.lat, b.lng);
+                    return da.compareTo(db);
+                  });
+            }
+
             if (devices.isEmpty) {
-              return const SliverFillRemaining(
+              final msg = (_userLat != null && _userLng != null)
+                  ? 'Geen toestellen binnen ${_radiusKm.toStringAsFixed(0)} km'
+                  : 'Geen toestellen gevonden';
+
+              return SliverFillRemaining(
                 child: Center(
                   child: Text(
-                    'Geen toestellen gevonden',
-                    style: TextStyle(color: Color(0xFF8E8E93)),
+                    msg,
+                    style: const TextStyle(color: Color(0xFF8E8E93)),
                   ),
                 ),
               );
             }
+
             return SliverPadding(
               padding: const EdgeInsets.all(16),
               sliver: SliverGrid(

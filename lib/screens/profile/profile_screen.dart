@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth/login_screen.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/map_settings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -11,14 +12,20 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .snapshots(),
       builder: (context, snap) {
         final data = snap.data?.data() as Map<String, dynamic>? ?? {};
         final name = data['name'] ?? 'Gebruiker';
         final email = data['email'] ?? '';
         final city = data['city'] ?? '';
         final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+        final locationLat = (data['locationLat'] as num?)?.toDouble();
+        final locationLng = (data['locationLng'] as num?)?.toDouble();
+        final radiusKm = (data['searchRadiusKm'] as num?)?.toDouble() ?? 15.0;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF8F8F8),
@@ -92,6 +99,26 @@ class ProfileScreen extends StatelessWidget {
                               ],
                             ),
                           ],
+                          if (locationLat != null && locationLng != null) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.radar_outlined,
+                                  size: 13,
+                                  color: Color(0xFF8E8E93),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Bereik: ${radiusKm.toStringAsFixed(0)} km',
+                                  style: const TextStyle(
+                                    color: Color(0xFF8E8E93),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -132,6 +159,21 @@ class ProfileScreen extends StatelessWidget {
               _Sectie(
                 title: 'Account',
                 children: [
+                  _Rij(
+                    icon: Icons.map_outlined,
+                    label: 'Map & bereik',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MapSettingsScreen(
+                          uid: uid,
+                          initialLat: locationLat,
+                          initialLng: locationLng,
+                          initialRadiusKm: radiusKm,
+                        ),
+                      ),
+                    ),
+                  ),
                   _Rij(
                     icon: Icons.logout,
                     label: 'Afmelden',
@@ -424,6 +466,18 @@ class _MijnReserveringenScreen extends StatelessWidget {
                               color: Color(0xFF8E8E93),
                             ),
                           ),
+                          if ((d['slotLabel'] as String?)?.isNotEmpty ==
+                              true) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              d['slotLabel'] as String,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF4F46E5),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

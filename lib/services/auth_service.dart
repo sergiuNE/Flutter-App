@@ -14,16 +14,27 @@ class AuthService {
     required String name,
     required String city,
   }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanName = name.trim();
+    final cleanCity = city.trim();
+
     final cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
+      email: cleanEmail,
       password: password,
     );
+
+    await cred.user?.updateDisplayName(cleanName);
+
     await _db.collection('users').doc(cred.user!.uid).set({
-      'name': name,
-      'email': email,
-      'city': city,
+      'name': cleanName,
+      'email': cleanEmail,
+      'city': cleanCity,
+      'searchRadiusKm': 15.0,
+      'locationLat': null,
+      'locationLng': null,
       'createdAt': FieldValue.serverTimestamp(),
     });
+
     return cred;
   }
 
@@ -31,8 +42,8 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
-      email: email,
+    return _auth.signInWithEmailAndPassword(
+      email: email.trim().toLowerCase(),
       password: password,
     );
   }
