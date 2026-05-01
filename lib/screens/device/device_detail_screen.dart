@@ -14,8 +14,8 @@ class DeviceDetailScreen extends StatelessWidget {
 
     final slots = [...device.availabilitySlots]
       ..sort((a, b) {
-        final dayCmp = a.weekday.compareTo(b.weekday);
-        if (dayCmp != 0) return dayCmp;
+        final dateCmp = a.date.compareTo(b.date);
+        if (dateCmp != 0) return dateCmp;
         return a.startMinutes.compareTo(b.startMinutes);
       });
 
@@ -30,15 +30,14 @@ class DeviceDetailScreen extends StatelessWidget {
           children: [
             const ListTile(
               title: Text(
-                'Kies een periode',
+                'Kies een datum',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             ...slots.map(
               (s) => ListTile(
-                leading: const Icon(Icons.schedule_outlined),
-                title: Text(s.dayLabelNl),
-                subtitle: Text(s.timeRangeLabel),
+                leading: const Icon(Icons.calendar_today_outlined),
+                title: Text(s.labelNl),
                 onTap: () => Navigator.pop(context, s),
               ),
             ),
@@ -55,7 +54,7 @@ class DeviceDetailScreen extends StatelessWidget {
     if (device.availabilitySlots.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Dit toestel heeft nog geen beschikbare periodes.'),
+          content: Text('Dit toestel heeft nog geen beschikbare datums.'),
           backgroundColor: Color(0xFFFF3B30),
         ),
       );
@@ -72,7 +71,7 @@ class DeviceDetailScreen extends StatelessWidget {
       'ownerId': device.ownerId,
       'status': 'pending',
       'pricePerDay': device.pricePerDay,
-      'slotWeekday': slot.weekday,
+      'slotDate': Timestamp.fromDate(slot.date),
       'slotStartMinutes': slot.startMinutes,
       'slotEndMinutes': slot.endMinutes,
       'slotLabel': slot.labelNl,
@@ -94,8 +93,8 @@ class DeviceDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final slots = [...device.availabilitySlots]
       ..sort((a, b) {
-        final dayCmp = a.weekday.compareTo(b.weekday);
-        if (dayCmp != 0) return dayCmp;
+        final dateCmp = a.date.compareTo(b.date);
+        if (dateCmp != 0) return dateCmp;
         return a.startMinutes.compareTo(b.startMinutes);
       });
 
@@ -266,9 +265,8 @@ class DeviceDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   const Text(
-                    'Beschikbare momenten',
+                    'Beschikbare datums',
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                   ),
                   const SizedBox(height: 8),

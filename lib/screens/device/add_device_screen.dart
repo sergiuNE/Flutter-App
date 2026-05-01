@@ -32,17 +32,11 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
 
   List<AvailabilitySlot> _slots = [];
 
-  static const Map<int, String> _weekdayNames = {
-    1: 'Maandag',
-    2: 'Dinsdag',
-    3: 'Woensdag',
-    4: 'Donderdag',
-    5: 'Vrijdag',
-    6: 'Zaterdag',
-    7: 'Zondag',
-  };
-
-  int _toMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
+  String _fmtDate(DateTime d) {
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd/$mm/${d.year}';
+  }
 
   String _fmtTime(TimeOfDay t) {
     final h = t.hour.toString().padLeft(2, '0');
@@ -50,139 +44,66 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     return '$h:$m';
   }
 
+  int _toMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
+
   Future<void> _showAddSlotDialog() async {
-    int weekday = 1;
-    TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
-    TimeOfDay end = const TimeOfDay(hour: 17, minute: 0);
-
-    await showModalBottomSheet(
+    final pickedDate = await showDatePicker(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            Future<void> pickStart() async {
-              final picked = await showTimePicker(
-                context: sheetContext,
-                initialTime: start,
-              );
-              if (picked != null) {
-                setSheetState(() => start = picked);
-              }
-            }
-
-            Future<void> pickEnd() async {
-              final picked = await showTimePicker(
-                context: sheetContext,
-                initialTime: end,
-              );
-              if (picked != null) {
-                setSheetState(() => end = picked);
-              }
-            }
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: 16 + MediaQuery.of(sheetContext).viewInsets.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Periode toevoegen',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    value: weekday,
-                    decoration: const InputDecoration(labelText: 'Dag'),
-                    items: _weekdayNames.entries
-                        .map(
-                          (e) => DropdownMenuItem<int>(
-                            value: e.key,
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setSheetState(() => weekday = v);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: pickStart,
-                          child: Text('Start: ${_fmtTime(start)}'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: pickEnd,
-                          child: Text('Einde: ${_fmtTime(end)}'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      final startMin = _toMinutes(start);
-                      final endMin = _toMinutes(end);
-
-                      if (endMin <= startMin) {
-                        _showError('Eindtijd moet na starttijd liggen.');
-                        return;
-                      }
-
-                      final overlaps = _slots.any(
-                        (s) =>
-                            s.weekday == weekday &&
-                            !(endMin <= s.startMinutes ||
-                                startMin >= s.endMinutes),
-                      );
-
-                      if (overlaps) {
-                        _showError('Deze periode overlapt met een bestaande.');
-                        return;
-                      }
-
-                      setState(() {
-                        _slots.add(
-                          AvailabilitySlot(
-                            weekday: weekday,
-                            startMinutes: startMin,
-                            endMinutes: endMin,
-                          ),
-                        );
-                        _slots.sort((a, b) {
-                          final dayCmp = a.weekday.compareTo(b.weekday);
-                          if (dayCmp != 0) return dayCmp;
-                          return a.startMinutes.compareTo(b.startMinutes);
-                        });
-                      });
-
-                      Navigator.pop(sheetContext);
-                    },
-                    child: const Text('Toevoegen'),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
     );
+    if (pickedDate == null) return;
+
+    final start = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (start == null) return;
+
+    final end = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 17, minute: 0),
+    );
+    if (end == null) return;
+
+    final startMin = _toMinutes(start);
+    final endMin = _toMinutes(end);
+
+    if (endMin <= startMin) {
+      _showError('Eindtijd moet na starttijd liggen.');
+      return;
+    }
+
+    final overlaps = _slots.any(
+      (s) =>
+          _sameDay(s.date, pickedDate) &&
+          !(endMin <= s.startMinutes || startMin >= s.endMinutes),
+    );
+
+    if (overlaps) {
+      _showError('Deze datum en tijd overlapt met een bestaande periode.');
+      return;
+    }
+
+    setState(() {
+      _slots.add(
+        AvailabilitySlot(
+          date: DateTime(pickedDate.year, pickedDate.month, pickedDate.day),
+          startMinutes: startMin,
+          endMinutes: endMin,
+        ),
+      );
+      _slots.sort((a, b) {
+        final dateCmp = a.date.compareTo(b.date);
+        if (dateCmp != 0) return dateCmp;
+        return a.startMinutes.compareTo(b.startMinutes);
+      });
+    });
   }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   // Foto kiezen: galerij of camera
   Future<void> _pickImage(ImageSource source) async {
@@ -362,7 +283,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       return;
     }
     if (_available && _slots.isEmpty) {
-      _showError('Voeg minstens 1 beschikbaar moment toe.');
+      _showError('Voeg minstens 1 beschikbare datum toe.');
       return;
     }
 
@@ -370,6 +291,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       _loading = true;
       _successMessage = null;
     });
+
     try {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final userDoc = await FirebaseFirestore.instance
@@ -377,14 +299,14 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
           .doc(uid)
           .get();
       final data = userDoc.data() ?? {};
-      final ownerName = userDoc.data()?['name'] ?? 'Onbekend';
+      final ownerName = data['name'] ?? 'Onbekend';
       final userLat = (data['locationLat'] as num?)?.toDouble();
       final userLng = (data['locationLng'] as num?)?.toDouble();
 
       String imageUrl = '';
       try {
         imageUrl = await _uploadImage();
-      } catch (e) {
+      } catch (_) {
         imageUrl = '';
       }
 
@@ -670,70 +592,57 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
             if (_available) ...[
               const SizedBox(height: 14),
               _Section(
-                title: 'Beschikbare momenten (wekelijks)',
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE0E0E0)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_slots.isEmpty)
-                        const Text(
-                          'Nog geen periodes toegevoegd.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF8E8E93),
-                          ),
-                        ),
-                      ..._slots.asMap().entries.map((entry) {
-                        final i = entry.key;
-                        final slot = entry.value;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8F8F8),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  slot.labelNl,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () => setState(() => _slots.removeAt(i)),
-                                child: const Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
-                                  color: Color(0xFFFF3B30),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      OutlinedButton.icon(
-                        onPressed: _showAddSlotDialog,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Periode toevoegen'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF4F46E5),
-                          side: const BorderSide(color: Color(0xFF4F46E5)),
+                title: 'Beschikbare datums',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_slots.isEmpty)
+                      const Text(
+                        'Nog geen datums toegevoegd.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8E8E93),
                         ),
                       ),
-                    ],
-                  ),
+                    ..._slots.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final slot = entry.value;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8F8F8),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                slot.labelNl,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(() => _slots.removeAt(i)),
+                              child: const Icon(
+                                Icons.delete_outline,
+                                size: 18,
+                                color: Color(0xFFFF3B30),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    OutlinedButton.icon(
+                      onPressed: _showAddSlotDialog,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Datum toevoegen'),
+                    ),
+                  ],
                 ),
               ),
             ],

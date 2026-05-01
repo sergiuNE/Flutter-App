@@ -138,9 +138,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Stream<List<Device>> _deviceStream() {
-    Query query = FirebaseFirestore.instance
-        .collection('devices')
-        .where('isAvailable', isEqualTo: true);
+    Query query = FirebaseFirestore.instance.collection('devices');
 
     if (_selectedCategory != 'Alles') {
       query = query.where('category', isEqualTo: _selectedCategory);
@@ -327,6 +325,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             }
 
             var devices = snap.data ?? [];
+
+            devices = devices.where((d) => d.isAvailable).toList();
 
             if (_searchQuery.isNotEmpty) {
               devices = devices.where((d) {

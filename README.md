@@ -71,14 +71,14 @@ Built for **Intro Mobile** at **AP Hogeschool** (2026).
 
 - default device fields
 - `availabilitySlots`:
-  - `weekday` (1=Monday … 7=Sunday)
+  - `date` (Timestamp)
   - `startMinutes`
   - `endMinutes`
 
 ### reservations/{id}
 
 - default reservation fields
-- `slotWeekday`
+- `slotDate`
 - `slotStartMinutes`
 - `slotEndMinutes`
 - `slotLabel`
@@ -102,7 +102,10 @@ flutter pub get
 2. Run:
 
 ```bash
-flutter run --dart-define=GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY --dart-define=CLOUDINARY_CLOUD_NAME=YOUR_CLOUD_NAME --dart-define=CLOUDINARY_UPLOAD_PRESET=YOUR_UNSIGNED_PRESET
+flutter run `
+  --dart-define=GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY `
+  --dart-define=CLOUDINARY_CLOUD_NAME=YOUR_CLOUD_NAME `
+  --dart-define=CLOUDINARY_UPLOAD_PRESET=YOUR_UNSIGNED_PRESET
 ```
 
 ## Test Users
@@ -110,6 +113,9 @@ flutter run --dart-define=GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY --dart-de
 - `test@gmail.com` / `test123`
 - `test2@gmail.com` / `test123`
 - `test3@gmail.com` / `test123`
+- `test4@gmail.com` / `test123.`
+- `test6@gmail.com` / `test123.`
+- `test7@gmail.com` / `test123.`
 
 ## Migration Note (Existing Data)
 
@@ -117,3 +123,7 @@ For existing accounts/devices, add these defaults:
 
 - users: `searchRadiusKm: 15`, `locationLat/locationLng: null`
 - devices: `availabilitySlots: []`
+
+## Video (verslag)
+
+The video walks through the full app experience end-to-end. It demonstrates device listing — including uploading a photo from the gallery or taking one directly with the camera, selecting weekly availability time slots, and setting a price per day. Browse and discovery features are shown, including searching by name and filtering by category. Location-based filtering is highlighted through a test user based in the USA, who only sees devices within his configured radius — confirming that the geolocation and range system works correctly across regions. The rental flow is covered in full: a renter reserves a device by choosing an available time slot, and the owner receives the request and can accept or decline it from their dashboard. Finally, the review system is demonstrated — posting a star rating and deleting it afterward.
